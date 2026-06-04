@@ -1,4 +1,9 @@
 import os
+
+# --- FIX BENTROK KERAS 3 VS KERAS 2 ---
+# Baris ini WAJIB di paling atas sebelum tensorflow di-import di mana pun
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+
 import pickle
 import joblib
 import streamlit as st
@@ -30,7 +35,8 @@ def load_dl():
     
     try:
         model_path = os.path.join(MODEL_DIR, "dl_model.h5")
-        model = tf.keras.models.load_model(model_path, compile=False)
+        # Menggunakan tf.keras.models.load_model yang sekarang dipaksa pakai versi legacy
+        model = tf.keras.models.load_model(model_path)
         
         with open(os.path.join(MODEL_DIR, "tokenizer.pkl"), "rb") as f:
             tok = pickle.load(f)
@@ -38,7 +44,6 @@ def load_dl():
             cfg = pickle.load(f)
         return model, tok, cfg, None
     except Exception as e:
-        # Jika gagal load, kembalikan pesan errornya agar bisa kita baca di UI
         return None, None, None, str(e)
 
 
@@ -57,7 +62,6 @@ def predict_dl(text):
     
     model, tok, cfg, error_msg = load_dl()
     
-    # Jika saat load model/pickle terjadi error, lemparkan ke luar
     if error_msg:
         raise RuntimeError(error_msg)
         
@@ -133,4 +137,3 @@ if st.button("Analisis Sentimen", type="primary"):
             except Exception as e:
                 st.error("🚨 **Terjadi kesalahan internal pada Model LSTM:**")
                 st.code(str(e), language="text")
-                st.warning("Catatan: Jika errornya berisi 'Magic number', artinya file .pkl kamu harus di-export ulang menggunakan versi python yang sama dengan server.")
