@@ -47,12 +47,10 @@ def load_dl():
 
         # Buka file .h5 secara manual untuk mengekstrak dan memperbaiki arsitektur model
         with h5py.File(model_path, 'r') as f:
-            # Mengambil string konfigurasi model dari metadata .h5
             model_config_raw = f.attrs.get('model_config')
             if model_config_raw is None:
                 raise ValueError("Format file .h5 tidak mengenali metadata model_config.")
             
-            # Decode jika formatnya byte string
             if isinstance(model_config_raw, bytes):
                 model_config_raw = model_config_raw.decode('utf-8')
                 
@@ -61,11 +59,17 @@ def load_dl():
             # Bersihkan parameter jahat dari semua layer secara massal
             cleaned_config = clean_quantization_config(model_config)
             
-            # Bangun kembali struktur arsitektur model dari konfigurasi yang sudah bersih
-            model = tf.keras.models.model_from_config(cleaned_config)
+            # FIX AKSES: Menggunakan tf.keras.models langsung atau saving.deserialize_keras_object
+            if hasattr(tf.keras.models, 'model_from_config'):
+                model = tf.keras.models.model_from_config(cleaned_config)
+            elif hasattr(tf.keras.saving, 'deserialize_keras_object'):
+                model = tf.keras.saving.deserialize_keras_object(cleaned_config)
+            else:
+                # Fallback terakhir jika versi tensor berubah lagi
+                from tensorflow.keras.layers import deserialize
+                model = tf.keras.models.Sequential.from_config(cleaned_config)
             
             # Salin bobot (weights) asli dari file .h5 ke dalam arsitektur baru
-            # Trik ini bypass error load_model bawaan Keras
             for layer in model.layers:
                 layer_name = layer.name
                 if f"model_weights/{layer_name}" in f:
@@ -74,7 +78,6 @@ def load_dl():
                     for weight_name in weight_names:
                         if isinstance(weight_name, bytes):
                             weight_name = weight_name.decode('utf-8')
-                        # Ambil matriks bobot asli
                         weights.append(f[f"model_weights/{layer_name}/{weight_name}"][()])
                     layer.set_weights(weights)
 
@@ -119,63 +122,3 @@ def predict_dl(text):
 
 
 # --- UI INTERFACE ---
-
-# Bagian Header & Identitas Mahasiswa
-st.title("💬 Analisis Sentimen")
-
-# Kotak Informasi Identitas
-st.info(f"""
-👤 **Nama:** Zahra Annisa  
-🆔 **NIM:** 2702284086  
-""")
-
-st.caption("Klasifikasi teks menjadi sentimen positif atau negatif secara otomatis.")
-st.write("---")
-
-# Input Pilihan Model
-model_choice = st.radio(
-    "Pilih Model Analisis:",
-    ["Machine Learning (Logistic Regression)", "Deep Learning (LSTM)"],
-    horizontal=False,
-)
-
-# Input Teks dari Pengguna
-text = st.text_area(
-    "Masukkan teks yang ingin dianalisis:", 
-    height=140,
-    placeholder="Contoh: Barangnya bagus banget, pengirimannya super cepat..."
-)
-
-# Tombol Aksi
-if st.button("Analisis Sentimen", type="primary"):
-    if not text.strip():
-        st.warning("Teks tidak boleh kosong. Silakan masukkan teks terlebih dahulu.")
-    else:
-        with st.spinner("Sedang memproses teks..."):
-            try:
-                if model_choice.startswith("Deep"):
-                    label, proba = predict_dl(text)
-                else:
-                    label, proba = predict_ml(text)
-                
-                # Menghitung nilai confidence score
-                conf = proba if label == "Positif" else 1 - proba
-                
-                # Menampilkan Hasil Utama
-                st.write("### Hasil Analisis:")
-                if label == "Positif":
-                    st.success(f"😊 **Sentimen Terdeteksi: {label}**")
-                else:
-                    st.error(f"😞 **Sentimen Terdeteksi: {label}**")
-
-                # Menampilkan Metrik dan Visualisasi Probabilitas
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    st.metric(label="Confidence Score", value=f"{conf * 100:.1f}%")
-                with col2:
-                    st.caption(f"Probabilitas ke arah Positif: P(positif) = {proba:.4f}")
-                    st.progress(proba)
-                    
-            except Exception as e:
-                st.error("🚨 **Terjadi kesalahan internal pada Model LSTM:**")
-                st.code(str(e), language="text")
