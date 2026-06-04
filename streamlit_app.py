@@ -1,9 +1,4 @@
 import os
-
-# --- FIX BENTROK KERAS 3 VS KERAS 2 ---
-# Baris ini WAJIB di paling atas sebelum tensorflow di-import di mana pun
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
 import pickle
 import joblib
 import streamlit as st
@@ -30,18 +25,31 @@ def load_ml():
 
 @st.cache_resource
 def load_dl():
-    """Memuat model Deep Learning (LSTM) beserta Tokenizer dan Konfigurasinya."""
+    """Memuat model Deep Learning (LSTM) dengan membersihkan bug Keras 3 Compatibility."""
     import tensorflow as tf
+    from tensorflow.keras.utils import custom_object_scope
     
     try:
         model_path = os.path.join(MODEL_DIR, "dl_model.h5")
-        # Menggunakan tf.keras.models.load_model yang sekarang dipaksa pakai versi legacy
-        model = tf.keras.models.load_model(model_path)
         
+        # --- PATCH BENTROK EMBEDDING QUANTIZATION ---
+        # Membuat custom class Embedding yang kebal terhadap parameter 'quantization_config'
+        class PatchedEmbedding(tf.keras.layers.Embedding):
+            def __init__(self, *args, **kwargs):
+                # Hapus paksa parameter yang bikin Keras 3 crash jika ada
+                kwargs.pop('quantization_config', None)
+                super().__init__(*args, **kwargs)
+        
+        # Paksa Keras menggunakan patch ini saat mendeserialisasi model h5
+        with custom_object_scope({'Embedding': PatchedEmbedding}):
+            model = tf.keras.models.load_model(model_path, compile=False)
+        
+        # Load Tokenizer dan Config
         with open(os.path.join(MODEL_DIR, "tokenizer.pkl"), "rb") as f:
             tok = pickle.load(f)
         with open(os.path.join(MODEL_DIR, "config.pkl"), "rb") as f:
             cfg = pickle.load(f)
+            
         return model, tok, cfg, None
     except Exception as e:
         return None, None, None, str(e)
