@@ -11,7 +11,7 @@ from app import (
 
 st.set_page_config(page_title="Indonesian Sentiment LSTM", page_icon="💬", layout="centered")
 
-st.title("💬 Indonesian Sentiment Analysis (LSTM)")
+st.title("💬 Welcome to Sentiment Analysis")
 
 with st.expander("About this app", expanded=False):
     st.write(
