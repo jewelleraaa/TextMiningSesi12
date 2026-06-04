@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentiment Analysis</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 20px;
+    }
+    .card {
+      background: #fff; border-radius: 16px; padding: 32px;
+      width: 100%; max-width: 560px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    h1 { font-size: 1.5rem; color: #2d2d44; margin-bottom: 4px; }
+    p.sub { color: #888; font-size: .9rem; margin-bottom: 20px; }
+    textarea {
+      width: 100%; min-height: 120px; padding: 14px; border: 2px solid #e0e0e0;
+      border-radius: 10px; font-size: 1rem; resize: vertical; font-family: inherit;
+    }
+    textarea:focus { outline: none; border-color: #667eea; }
+    .row { display: flex; gap: 12px; margin: 16px 0; align-items: center; }
+    select {
+      flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px;
+      font-size: 1rem; background: #fff;
+    }
+    button {
+      background: #667eea; color: #fff; border: none; padding: 12px 28px;
+      border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer;
+      transition: .2s;
+    }
+    button:hover { background: #5568d3; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    #result { margin-top: 24px; padding: 20px; border-radius: 12px; display: none; }
+    #result.positif { background: #e6f9ee; border: 1px solid #34c759; }
+    #result.negatif { background: #fdecec; border: 1px solid #ff3b30; }
+    .label { font-size: 1.4rem; font-weight: 700; }
+    .label.positif { color: #1e7d3a; }
+    .label.negatif { color: #c0271e; }
+    .meta { color: #555; font-size: .9rem; margin-top: 6px; }
+    .bar { height: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 12px; overflow: hidden; }
+    .bar-fill { height: 100%; transition: width .4s; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Analisis Sentimen</h1>
+    <p class="sub">Masukkan teks (review, komentar, dll) untuk dianalisis.</p>
+
+    <textarea id="text" placeholder="Contoh: barangnya bagus banget pengiriman cepat..."></textarea>
+
+    <div class="row">
+      <select id="model">
+        <option value="ml">Machine Learning (Logistic Regression)</option>
+        <option value="dl">Deep Learning (LSTM)</option>
+      </select>
+      <button id="btn" onclick="analyze()">Analisis</button>
+    </div>
+
+    <div id="result">
+      <div class="label" id="label"></div>
+      <div class="meta" id="meta"></div>
+      <div class="bar"><div class="bar-fill" id="bar"></div></div>
+    </div>
+  </div>
+
+  <script>
+    async function analyze() {
+      const text = document.getElementById('text').value.trim();
+      const model = document.getElementById('model').value;
+      const btn = document.getElementById('btn');
+      const result = document.getElementById('result');
+      if (!text) { alert('Teks tidak boleh kosong'); return; }
+
+      btn.disabled = true; btn.textContent = 'Memproses...';
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, model })
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+
+        const isPos = data.label === 'Positif';
+        result.className = isPos ? 'positif' : 'negatif';
+        result.style.display = 'block';
+        document.getElementById('label').textContent =
+          (isPos ? '😊 ' : '😞 ') + data.label;
+        document.getElementById('label').className = 'label ' + (isPos ? 'positif' : 'negatif');
+        document.getElementById('meta').textContent =
+          `Model: ${data.model} · Confidence: ${(data.confidence*100).toFixed(1)}% · P(positif): ${data.proba_positif}`;
+        const bar = document.getElementById('bar');
+        bar.style.width = (data.proba_positif*100) + '%';
+        bar.style.background = isPos ? '#34c759' : '#ff3b30';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Analisis';
+      }
+    }
+  </script>
+</body>
+</html>

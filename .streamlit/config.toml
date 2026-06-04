@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#FFB6C1"          # Soft Pink (untuk Tombol Analisis & Progress Bar)
+backgroundColor = "#FFF0F5"       # Lavender Blush (Warna latar belakang aplikasi)
+secondaryBackgroundColor = "#FFE4E1" # Misty Rose (Warna latar belakang Text Area & Radio Button)
+textColor = "#333333"             # Abu-abu gelap (Supaya teks tetap kontras dan mudah dibaca)
+font = "sans serif"

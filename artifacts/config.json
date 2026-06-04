@@ -1,1 +1,0 @@
-{"max_words": 14000, "max_len": 40, "embedding_dim": 64, "lstm_units": 64, "dropout": 0.3, "batch_size": 40, "epochs": 6, "validation_split": 0.1, "patience": 2}
