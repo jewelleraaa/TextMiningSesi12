@@ -26,10 +26,12 @@ def load_ml():
 @st.cache_resource
 def load_dl():
     """Memuat model Deep Learning (LSTM) beserta Tokenizer dan Konfigurasinya."""
-    # Lazy import tensorflow untuk mempercepat load awal halaman jika tidak dipakai
-    from tensorflow.keras.models import load_model
+    import tensorflow as tf
     
-    model = load_model(os.path.join(MODEL_DIR, "dl_model.h5"))
+    # Ditambahkan compile=False agar Keras versi baru tidak error membaca file .h5 lama
+    model_path = os.path.join(MODEL_DIR, "dl_model.h5")
+    model = tf.keras.models.load_model(model_path, compile=False)
+    
     with open(os.path.join(MODEL_DIR, "tokenizer.pkl"), "rb") as f:
         tok = pickle.load(f)
     with open(os.path.join(MODEL_DIR, "config.pkl"), "rb") as f:
@@ -64,7 +66,15 @@ def predict_dl(text):
 
 # --- UI INTERFACE ---
 
+# Bagian Header & Identitas Mahasiswa
 st.title("💬 Analisis Sentimen")
+
+# Kotak Informasi Identitas (Terintegrasi rapi dengan tema)
+st.info(f"""
+👤 **Nama:** Zahra Annisa  
+🆔 **NIM:** 2702284086  
+""")
+
 st.caption("Klasifikasi teks menjadi sentimen positif atau negatif secara otomatis.")
 st.write("---")
 
