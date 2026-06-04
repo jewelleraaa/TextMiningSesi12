@@ -25,26 +25,60 @@ def load_ml():
 
 @st.cache_resource
 def load_dl():
-    """Memuat model Deep Learning (LSTM) dengan membersihkan bug Keras 3 Compatibility."""
+    """Memuat model Deep Learning (LSTM) dengan membersihkan semua bug Keras 3 secara global."""
     import tensorflow as tf
-    from tensorflow.keras.utils import custom_object_scope
+    import h5py
+    import json
     
     try:
         model_path = os.path.join(MODEL_DIR, "dl_model.h5")
         
-        # --- PATCH BENTROK EMBEDDING QUANTIZATION ---
-        # Membuat custom class Embedding yang kebal terhadap parameter 'quantization_config'
-        class PatchedEmbedding(tf.keras.layers.Embedding):
-            def __init__(self, *args, **kwargs):
-                # Hapus paksa parameter yang bikin Keras 3 crash jika ada
-                kwargs.pop('quantization_config', None)
-                super().__init__(*args, **kwargs)
-        
-        # Paksa Keras menggunakan patch ini saat mendeserialisasi model h5
-        with custom_object_scope({'Embedding': PatchedEmbedding}):
-            model = tf.keras.models.load_model(model_path, compile=False)
-        
-        # Load Tokenizer dan Config
+        # --- GLOBAL PATCH UNTUK KORUP CONFIG KERAS 3 ---
+        def clean_quantization_config(config):
+            """Menghapus parameter quantization_config di semua layer secara rekursif."""
+            if isinstance(config, dict):
+                config.pop('quantization_config', None)
+                for key, value in config.items():
+                    clean_quantization_config(value)
+            elif isinstance(config, list):
+                for item in config:
+                    clean_quantization_config(item)
+            return config
+
+        # Buka file .h5 secara manual untuk mengekstrak dan memperbaiki arsitektur model
+        with h5py.File(model_path, 'r') as f:
+            # Mengambil string konfigurasi model dari metadata .h5
+            model_config_raw = f.attrs.get('model_config')
+            if model_config_raw is None:
+                raise ValueError("Format file .h5 tidak mengenali metadata model_config.")
+            
+            # Decode jika formatnya byte string
+            if isinstance(model_config_raw, bytes):
+                model_config_raw = model_config_raw.decode('utf-8')
+                
+            model_config = json.loads(model_config_raw)
+            
+            # Bersihkan parameter jahat dari semua layer secara massal
+            cleaned_config = clean_quantization_config(model_config)
+            
+            # Bangun kembali struktur arsitektur model dari konfigurasi yang sudah bersih
+            model = tf.keras.models.model_from_config(cleaned_config)
+            
+            # Salin bobot (weights) asli dari file .h5 ke dalam arsitektur baru
+            # Trik ini bypass error load_model bawaan Keras
+            for layer in model.layers:
+                layer_name = layer.name
+                if f"model_weights/{layer_name}" in f:
+                    weight_names = f[f"model_weights/{layer_name}"].attrs.get('weight_names')
+                    weights = []
+                    for weight_name in weight_names:
+                        if isinstance(weight_name, bytes):
+                            weight_name = weight_name.decode('utf-8')
+                        # Ambil matriks bobot asli
+                        weights.append(f[f"model_weights/{layer_name}/{weight_name}"][()])
+                    layer.set_weights(weights)
+
+        # Load Tokenizer dan Config pendukung
         with open(os.path.join(MODEL_DIR, "tokenizer.pkl"), "rb") as f:
             tok = pickle.load(f)
         with open(os.path.join(MODEL_DIR, "config.pkl"), "rb") as f:
